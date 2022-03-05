@@ -62,4 +62,3 @@ with st.form('Rolling_Correlation_Analysis'):
                  'StDev:',s.std(),'\n',
                  'Min:',s.min(),'\n',
                  'Max:',s.max())
-        st.pyplot(s.plot.hist())
