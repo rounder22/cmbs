@@ -15,20 +15,26 @@ import yfinance as yf
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-#url='https://raw.githubusercontent.com/rounder22/cmbs/main/cleaned%20index%20data.csv'
-#s=requests.get(url).content
-#df=pd.read_csv(io.StringIO(s.decode('utf-8')))
-df=pd.read_csv('cleaned index data.csv')
-df=df.set_index('Date').T
-df.index=pd.to_datetime(df.index)
-df.sort_index(inplace=True)
-spx=yf.download('^GSPC',period='3y')
-df=pd.merge(df,spx.Close.to_frame(),how='left',left_index=True,right_index=True)
-df.rename(columns={'Close':'SPX'},inplace=True)
+
+
+@st.cache
+def getData():
+    #url='https://raw.githubusercontent.com/rounder22/cmbs/main/cleaned%20index%20data.csv'
+    #s=requests.get(url).content
+    #df=pd.read_csv(io.StringIO(s.decode('utf-8')))
+    df=pd.read_csv('cleaned index data.csv')
+    df=df.set_index('Date').T
+    df.index=pd.to_datetime(df.index)
+    df.sort_index(inplace=True)
+    spx=yf.download('^GSPC',period='3y')
+    df=pd.merge(df,spx.Close.to_frame(),how='left',left_index=True,right_index=True)
+    df.rename(columns={'Close':'SPX'},inplace=True)
+    return df
 
 st.title('Hedging Analysis')
-seriesI=st.selectbox('Select Independent Series',df.columns)
-seriesD=st.selectbox('Select Dependent Series',df.columns)
+df=getData()
+seriesI=st.selectbox('Select Independent Series',df.columns,index=2)
+seriesD=st.selectbox('Select Dependent Series',df.columns,index=7)
 df=df[[seriesI,seriesD]]
    
 fig=make_subplots(specs=[[{"secondary_y":True}]])
