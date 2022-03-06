@@ -12,6 +12,7 @@ from sklearn.linear_model import LinearRegression
 import yfinance as yf
 #import io
 #import requests
+import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
@@ -74,6 +75,8 @@ with st.form('rolling'):
         x=x.values.reshape(-1,1)
         linear_regressor=LinearRegression()
         linear_regressor.fit(x,y)
+        x_range=np.linspace(x.min(),x.max(),100)
+        y_range=linear_regressor.predict(x_range.reshape(-1,1))
 
         col1.write('')
         col1.write('')
@@ -86,6 +89,10 @@ with st.form('rolling'):
         col1.write('Intercept: '+"{:0.2f}".format(linear_regressor.intercept_))
         col1.write('Correlation: '+"{:0.2f}".format(linear_regressor.score(x,y)))
         col1.write('Observations: '+str(len(x)))
+        col1.write('')
+        fig1=px.scatter(df1,x=seriesD,y=seriesI)
+        #fig1.add_trace(go.Scatter(x=x_range,y=y_range,name='Regression Fit'))
+        st.plotly_chart(fig1)
         
         col2.write(str(d1)+'d Correlations')
         s1=df1[seriesI].rolling(d1).corr(df1[seriesD])
@@ -95,6 +102,9 @@ with st.form('rolling'):
         col2.write('StDev: '+"{:0.2f}".format(s1.std()))
         col2.write('Min:'+"{:0.2f}".format(s1.min()))
         col2.write('Max:'+"{:0.2f}".format(s1.max()))
+        col2.write('')
+        fig2=px.histogram(s1,title=str(d1)+'d Correlations')
+        st.plotly_chart(fig2)
         
         col3.write(str(d2)+'d Correlations')
         s2=df1[seriesI].rolling(d2).corr(df1[seriesD])
@@ -104,6 +114,9 @@ with st.form('rolling'):
         col3.write('StDev: '+"{:0.2f}".format(s2.std()))
         col3.write('Min:'+"{:0.2f}".format(s2.min()))
         col3.write('Max:'+"{:0.2f}".format(s2.max()))
+        col3.write('')
+        fig3=px.histogram(s2,title=str(d2)+'d Correlations')
+        st.plotly_chart(fig3)
         
         col4.write(str(d2)+'d Correlations')
         s3=df1[seriesI].rolling(d3).corr(df1[seriesD])
@@ -113,3 +126,6 @@ with st.form('rolling'):
         col4.write('StDev: '+"{:0.2f}".format(s3.std()))
         col4.write('Min:'+"{:0.2f}".format(s3.min()))
         col4.write('Max:'+"{:0.2f}".format(s3.max()))
+        col4.write('')
+        fig4=px.histogram(s3,title=str(d3)+'d Correlations')
+        st.plotly_chart(fig4)
