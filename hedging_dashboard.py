@@ -90,8 +90,8 @@ with st.form('rolling'):
         col1.write('Correlation: '+"{:0.2f}".format(linear_regressor.score(x,y)))
         col1.write('Observations: '+str(len(x)))
         col1.write('')
-        fig1=px.scatter(df1,x=seriesD,y=seriesI)
-        #fig1.add_trace(go.Scatter(x=x_range,y=y_range,name='Regression Fit'))
+        fig1=px.scatter(df1,x=seriesI,y=seriesD)
+        fig1.add_trace(go.Scatter(x=x_range,y=y_range,name='Regression Fit'))
         st.plotly_chart(fig1)
         
         col2.write(str(d1)+'d Correlations')
