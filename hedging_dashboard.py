@@ -9,6 +9,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 from sklearn.linear_model import LinearRegression
+import scipy.stats
 import yfinance as yf
 #import io
 import requests as re
@@ -65,6 +66,7 @@ df=getData()
 seriesI=st.selectbox('Select Independent Series',df.columns,index=2)
 seriesD=st.selectbox('Select Dependent Series',df.columns,index=7)
 df=df[[seriesI,seriesD]].dropna()
+df=df.astype('float')
    
 fig=make_subplots(specs=[[{"secondary_y":True}]])
 fig.add_trace(go.Scatter(x=df.index,y=df[seriesI].values,name=seriesI)
@@ -106,12 +108,9 @@ with st.form('rolling'):
     submitted1=st.form_submit_button('Submit')
     
     if submitted1:
-        df1=df[[seriesI,seriesD]].dropna()
-        df1=df1.astype('float')
-        
-        y=df1[seriesD][np.logical_not(np.isnan(df1[seriesD]))]
-        x=df1[seriesI][np.logical_not(np.isnan(df1[seriesI]))]
-        x=x.values.reshape(-1,1)
+        y=df[seriesD][np.logical_not(np.isnan(df[seriesD]))]
+        X=df[seriesI][np.logical_not(np.isnan(df[seriesI]))]
+        x=X.values.reshape(-1,1)
         linear_regressor=LinearRegression()
         linear_regressor.fit(x,y)
         x_range=np.linspace(x.min(),x.max(),100)
@@ -126,15 +125,15 @@ with st.form('rolling'):
         col1.markdown('**Regression Statistics**')
         col1.write('Coef: '+"{:0.2f}".format(linear_regressor.coef_[0]))
         col1.write('Intercept: '+"{:0.2f}".format(linear_regressor.intercept_))
-        col1.write('Correlation: '+"{:0.2f}".format(linear_regressor.score(x,y)))
+        col1.write('Correlation: '+"{:0.2f}".format(scipy.stats.pearsonr(X,y)[0]))
         col1.write('Observations: '+str(len(x)))
         col1.write('')
-        fig1=px.scatter(df1,x=seriesI,y=seriesD)
+        fig1=px.scatter(df,x=seriesI,y=seriesD)
         fig1.add_trace(go.Scatter(x=x_range,y=y_range,name='Regression Fit'))
         st.plotly_chart(fig1)
         
         col2.write(str(d1)+'d Correlations')
-        s1=df1[seriesI].rolling(d1).corr(df1[seriesD])
+        s1=df[seriesI].rolling(d1).corr(df[seriesD])
         col2.write('Last: '+"{:0.2f}".format(s1[-1]))
         col2.write('Mean: '+"{:0.2f}".format(s1.mean()))
         col2.write('Median: '+"{:0.2f}".format(s1.median()))
@@ -146,7 +145,7 @@ with st.form('rolling'):
         st.plotly_chart(fig2)
         
         col3.write(str(d2)+'d Correlations')
-        s2=df1[seriesI].rolling(d2).corr(df1[seriesD])
+        s2=df[seriesI].rolling(d2).corr(df[seriesD])
         col3.write('Last: '+"{:0.2f}".format(s2[-1]))
         col3.write('Mean: '+"{:0.2f}".format(s2.mean()))
         col3.write('Median: '+"{:0.2f}".format(s2.median()))
@@ -158,7 +157,7 @@ with st.form('rolling'):
         st.plotly_chart(fig3)
         
         col4.write(str(d2)+'d Correlations')
-        s3=df1[seriesI].rolling(d3).corr(df1[seriesD])
+        s3=df[seriesI].rolling(d3).corr(df[seriesD])
         col4.write('Last: '+"{:0.2f}".format(s3[-1]))
         col4.write('Mean: '+"{:0.2f}".format(s3.mean()))
         col4.write('Median: '+"{:0.2f}".format(s3.median()))
