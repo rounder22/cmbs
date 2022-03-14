@@ -11,15 +11,15 @@ import numpy as np
 from sklearn.linear_model import LinearRegression
 import yfinance as yf
 #import io
-#import requests
+import requests as re
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-
-
+import quandl
 
 @st.cache
 def getData():
+    
     #url='https://raw.githubusercontent.com/rounder22/cmbs/main/cleaned%20index%20data.csv'
     #s=requests.get(url).content
     #df=pd.read_csv(io.StringIO(s.decode('utf-8')))
@@ -27,16 +27,44 @@ def getData():
     df=df.set_index('Date').T
     df.index=pd.to_datetime(df.index)
     df.sort_index(inplace=True)
-    spx=yf.download('^GSPC',period='3y')
-    df=pd.merge(df,spx.Close.to_frame(),how='left',left_index=True,right_index=True)
-    df.rename(columns={'Close':'SPX'},inplace=True)
+    
+    #Yahoo Data
+    yahoo=yf.download(['^GSPC','IVOL','XLF','BAC','JPM'],period='5y')
+    df=pd.merge(df,yahoo.Close,how='outer',left_index=True,right_index=True)
+    df.rename(columns={'^GSPC':'SPX'},inplace=True)
+    
+    #FRED Data
+    api_key='73cf3bed4794ea8277f4d43358d8ce07'
+    lsSeries={'UST2Y':'DGS2','UST5Y':'DGS5','UST10Y':'DGS10','UST30Y':'DGS30',
+              'Real UST10Y':'DFII10'}
+    endpoint='https://api.stlouisfed.org/fred/series/observations'
+    for series in lsSeries:
+        params={'api_key':api_key,
+                'file_type':'json',
+                'series_id':lsSeries[series]
+                }
+        dfFRED=pd.DataFrame(re.get(endpoint,params).json()['observations'])
+        dfFRED['value']=dfFRED['value'].str.replace('.','')
+        dfFRED['date']=pd.to_datetime(dfFRED['date'])
+        dfFRED['value']=pd.to_numeric(dfFRED['value'])
+        dfFRED.drop(columns=['realtime_start','realtime_end'],inplace=True)
+        dfFRED.rename(columns={'date':'Date'},inplace=True)
+        dfFRED.set_index('Date',inplace=True)
+        dfFRED.rename(columns={'value':series},inplace=True)
+        df=pd.merge(df,dfFRED,how='outer',left_index=True,right_index=True)
+    
+    #Quandl Data
+    quandl.ApiConfig.api_key='56v4NVWgkabqfn_Xy8Rj'
+    qData=quandl.get(['LBMA/GOLD','LBMA/SILVER'])
+    df=pd.merge(df,qData,how='outer',left_index=True,right_index=True)
+    
     return df
 
 st.title('Hedging Analysis')
 df=getData()
 seriesI=st.selectbox('Select Independent Series',df.columns,index=2)
 seriesD=st.selectbox('Select Dependent Series',df.columns,index=7)
-df=df[[seriesI,seriesD]]
+df=df[[seriesI,seriesD]].dropna()
    
 fig=make_subplots(specs=[[{"secondary_y":True}]])
 fig.add_trace(go.Scatter(x=df.index,y=df[seriesI].values,name=seriesI)
@@ -59,6 +87,17 @@ st.plotly_chart(fig)
 
 with st.form('rolling'):
     st.subheader('Rolling Regession Analysis')
+    startDate=st.date_input('Start Date',
+                            value=df.index.min(),
+                            min_value=df.index.min(),
+                            max_value=df.index.max()
+                            )
+    endDate=st.date_input('End Date',
+                          value=df.index.max(),
+                          min_value=df.index.min(),
+                          max_value=df.index.max()
+                          )
+    df=df.reindex(pd.bdate_range(start=startDate,end=endDate))
     col1, col2, col3, col4=st.columns(4)
     d1=col2.number_input('Enter Number of Days',min_value=2,step=1,value=5)
     d2=col3.number_input('Enter Number of Days',min_value=2,step=1,value=10)
