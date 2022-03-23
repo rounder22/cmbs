@@ -87,27 +87,48 @@ fig.update_xaxes(rangeslider_visible=True,
 )
 st.plotly_chart(fig)
 
-with st.form('rolling'):
-    st.subheader('Rolling Regession Analysis')
-    startDate=st.date_input('Start Date',
+with st.form('regression'):
+    st.subheader('Regession Analysis')
+    a,b=st.columns(2)
+    firstRegimeCheck=a.checkbox('Use First Regime',
+                                value=True,
+                                )
+    a.markdown('**First Regime**')
+    startDate=a.date_input('Start Date',
                             value=df.index.min(),
                             min_value=df.index.min(),
-                            max_value=df.index.max()
+                            max_value=df.index.max(),
+                            key=1
                             )
-    endDate=st.date_input('End Date',
+    endDate=a.date_input('End Date',
                           value=df.index.max(),
                           min_value=df.index.min(),
-                          max_value=df.index.max()
+                          max_value=df.index.max(),
+                          key=1
                           )
+    check=b.checkbox('Use Second Regime')
+    b.markdown('**Second Regime**')
+    regimeStartDate=b.date_input('Start Date',
+                                  value=df.index.min(),
+                                  min_value=df.index.min(),
+                                  max_value=df.index.max()
+                                  )
+    regimeEndDate=b.date_input('End Date',
+                                value=df.index.max(),
+                                min_value=df.index.min(),
+                                max_value=df.index.max()
+                                )
+    if check:
+        df1=df.reindex(pd.date_range(start=regimeStartDate,
+                                     end=regimeEndDate
+                                     )
+                       )
+    
     df=df.reindex(pd.bdate_range(start=startDate,end=endDate))
-    col1, col2, col3, col4=st.columns(4)
-    d1=col2.number_input('Enter Number of Days',min_value=2,step=1,value=5)
-    d2=col3.number_input('Enter Number of Days',min_value=2,step=1,value=10)
-    d3=col4.number_input('Enter Number of Days',min_value=2,step=1,value=20)
     
-    submitted1=st.form_submit_button('Submit')
+    submitted=st.form_submit_button('Submit')    
     
-    if submitted1:
+    if submitted:
         y=df[seriesD][np.logical_not(np.isnan(df[seriesD]))]
         X=df[seriesI][np.logical_not(np.isnan(df[seriesI]))]
         x=X.values.reshape(-1,1)
@@ -115,55 +136,96 @@ with st.form('rolling'):
         linear_regressor.fit(x,y)
         x_range=np.linspace(x.min(),x.max(),100)
         y_range=linear_regressor.predict(x_range.reshape(-1,1))
+        columns=['Regime 1']
+        data=["{:0.2f}".format(linear_regressor.coef_[0]),
+                        "{:0.2f}".format(linear_regressor.intercept_),
+                        "{:0.2f}".format(scipy.stats.pearsonr(X,y)[0]),
+                        str(len(x))
+            ]
+        if check:
+            y1=df1[seriesD][np.logical_not(np.isnan(df1[seriesD]))]
+            X1=df1[seriesI][np.logical_not(np.isnan(df1[seriesI]))]
+            x1=X1.values.reshape(-1,1)
+            linear_regressor1=LinearRegression()
+            linear_regressor1.fit(x1,y1)
+            x1_range=np.linspace(x1.min(),x1.max(),100)
+            y1_range=linear_regressor1.predict(x1_range.reshape(-1,1))
+            columns.append('Regime 2')
+            r2Data=["{:0.2f}".format(linear_regressor1.coef_[0]),
+                        "{:0.2f}".format(linear_regressor1.intercept_),
+                        "{:0.2f}".format(scipy.stats.pearsonr(X1,y1)[0]),
+                        str(len(x1))
+                    ]
+            data=list(zip(data,r2Data))
+        st.markdown('**Regression Statistics**')
+        index=['Coefficient','Intercept','Correlation','Observations']
 
-        col1.write('')
-        col1.write('')
-        col1.write('')
-        col1.write('')
-        col1.write('')
-        col1.write('')
-        col1.markdown('**Regression Statistics**')
-        col1.write('Coef: '+"{:0.2f}".format(linear_regressor.coef_[0]))
-        col1.write('Intercept: '+"{:0.2f}".format(linear_regressor.intercept_))
-        col1.write('Correlation: '+"{:0.2f}".format(scipy.stats.pearsonr(X,y)[0]))
-        col1.write('Observations: '+str(len(x)))
-        col1.write('')
-        fig1=px.scatter(df,x=seriesI,y=seriesD)
-        fig1.add_trace(go.Scatter(x=x_range,y=y_range,name='Regression Fit'))
-        st.plotly_chart(fig1)
-        
-        col2.write(str(d1)+'d Correlations')
+        regressionStats=pd.DataFrame(data,index=index,columns=columns)        
+        st.dataframe(regressionStats)
+        #fig1=px.scatter(df,x=seriesI,y=seriesD,
+        #                )
+        fig1=go.Figure()    
+        fig1.add_trace(go.Scatter(x=df[seriesI],y=df[seriesD],
+                                  mode='markers',
+                                  name='Regime 1')
+                       )
+        fig1.add_trace(go.Scatter(x=x_range,y=y_range,name='Regime 1 Fit'))
+        if check:
+            fig1.add_trace(go.Scatter(x=x1_range,y=y1_range,
+                                      name='Regime 2 Fit',
+                                      fillcolor='purple')
+                           )
+            fig1.add_trace(go.Scatter(x=df1[seriesI],y=df1[seriesD],
+                                      mode='markers',
+                                      name='Regime 2')
+                           )
+        fig1.update_layout(xaxis_title=seriesI,
+                           yaxis_title=seriesD)
+        st.plotly_chart(fig1)    
+    
+with st.form('rolling'):    
+    st.subheader('Rolling Correlation Analysis')
+    col2, col3, col4=st.columns(3)
+    d1=col2.number_input('Enter Number of Days',min_value=2,step=1,value=5)
+    d2=col3.number_input('Enter Number of Days',min_value=2,step=1,value=10)
+    d3=col4.number_input('Enter Number of Days',min_value=2,step=1,value=20)
+    
+    submittedRolling=st.form_submit_button('Submit')
+    
+    if submittedRolling:
+        index=['Last','Mean','Median','StDev','Min','Max']
+        columns=[str(d1)+'d',str(d2)+'d',str(d3)+'d']
         s1=df[seriesI].rolling(d1).corr(df[seriesD])
-        col2.write('Last: '+"{:0.2f}".format(s1[-1]))
-        col2.write('Mean: '+"{:0.2f}".format(s1.mean()))
-        col2.write('Median: '+"{:0.2f}".format(s1.median()))
-        col2.write('StDev: '+"{:0.2f}".format(s1.std()))
-        col2.write('Min:'+"{:0.2f}".format(s1.min()))
-        col2.write('Max:'+"{:0.2f}".format(s1.max()))
-        col2.write('')
+        
+        data1=["{:0.2f}".format(s1[-1]),"{:0.2f}".format(s1.mean()),
+              "{:0.2f}".format(s1.median()),"{:0.2f}".format(s1.std()),
+              "{:0.2f}".format(s1.min()),"{:0.2f}".format(s1.max())
+              ]
+        s2=df[seriesI].rolling(d2).corr(df[seriesD])
+        
+        data2=["{:0.2f}".format(s2[-1]),"{:0.2f}".format(s2.mean()),
+              "{:0.2f}".format(s2.median()),"{:0.2f}".format(s2.std()),
+              "{:0.2f}".format(s2.min()),"{:0.2f}".format(s2.max())
+              ]
+        
+        s3=df[seriesI].rolling(d3).corr(df[seriesD])
+        
+        data3=["{:0.2f}".format(s3[-1]),"{:0.2f}".format(s3.mean()),
+              "{:0.2f}".format(s3.median()),"{:0.2f}".format(s3.std()),
+              "{:0.2f}".format(s3.min()),"{:0.2f}".format(s3.max())
+              ]
+        data=list(zip(data1,data2,data3))
+        rollingCorrelations=pd.DataFrame(data,index=index,columns=columns)
+        
+        st.markdown('**Rolling Correlation Statistics**')
+        st.dataframe(rollingCorrelations)
+        
         fig2=px.histogram(s1,title=str(d1)+'d Correlations')
         st.plotly_chart(fig2)
         
-        col3.write(str(d2)+'d Correlations')
-        s2=df[seriesI].rolling(d2).corr(df[seriesD])
-        col3.write('Last: '+"{:0.2f}".format(s2[-1]))
-        col3.write('Mean: '+"{:0.2f}".format(s2.mean()))
-        col3.write('Median: '+"{:0.2f}".format(s2.median()))
-        col3.write('StDev: '+"{:0.2f}".format(s2.std()))
-        col3.write('Min:'+"{:0.2f}".format(s2.min()))
-        col3.write('Max:'+"{:0.2f}".format(s2.max()))
-        col3.write('')
+        
         fig3=px.histogram(s2,title=str(d2)+'d Correlations')
         st.plotly_chart(fig3)
         
-        col4.write(str(d2)+'d Correlations')
-        s3=df[seriesI].rolling(d3).corr(df[seriesD])
-        col4.write('Last: '+"{:0.2f}".format(s3[-1]))
-        col4.write('Mean: '+"{:0.2f}".format(s3.mean()))
-        col4.write('Median: '+"{:0.2f}".format(s3.median()))
-        col4.write('StDev: '+"{:0.2f}".format(s3.std()))
-        col4.write('Min:'+"{:0.2f}".format(s3.min()))
-        col4.write('Max:'+"{:0.2f}".format(s3.max()))
-        col4.write('')
         fig4=px.histogram(s3,title=str(d3)+'d Correlations')
         st.plotly_chart(fig4)
