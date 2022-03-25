@@ -30,7 +30,7 @@ def getData():
     df.sort_index(inplace=True)
     
     #Yahoo Data
-    yahoo=yf.download(['^GSPC','IVOL','XLF','BAC','JPM'],period='5y')
+    yahoo=yf.download(['^GSPC','IVOL','XLF','BAC','JPM','PFIX','NLY','AGNC'],period='5y')
     df=pd.merge(df,yahoo.Close,how='outer',left_index=True,right_index=True)
     df.rename(columns={'^GSPC':'SPX'},inplace=True)
     
