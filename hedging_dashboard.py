@@ -24,9 +24,9 @@ def getData():
     #url='https://raw.githubusercontent.com/rounder22/cmbs/main/cleaned%20index%20data.csv'
     #s=requests.get(url).content
     #df=pd.read_csv(io.StringIO(s.decode('utf-8')))
-    df=pd.read_csv('cleaned index data.csv')
-    df=df.set_index('Date').T
-    df.index=pd.to_datetime(df.index)
+    df=pd.read_pickle('index_data.pkl')
+    #df=df.set_index('Date').T
+    #df.index=pd.to_datetime(df.index)
     df.sort_index(inplace=True)
     
     #Yahoo Data
@@ -61,13 +61,74 @@ def getData():
     
     return df
 
+def inputData(file):
+    df=pd.read_csv(file)
+    df=df.dropna().set_index('Date').T
+    df.index=pd.to_datetime(df.index)
+    
+    old=pd.read_pickle('index_data.pkl')
+    #old=old.set_index('Date').T
+    #old.index=pd.to_datetime(old.index)
+    old=old.append(df)
+    #old=old[~old.index.duplicated(keep='first')]
+    old.to_pickle('index_data.pkl')
+
+##### SIDEBAR #####    
+st.sidebar.subheader('Upload Data')
+st.sidebar.download_button('Downloand Input Template',
+                           data=open('input.csv','rb'),
+                           file_name='input.csv'
+                           )
+file=st.sidebar.file_uploader('Select File',
+                              type='csv'
+                              )
+if st.sidebar.button('Upload'):
+    inputData(file)
+    
+##### MAIN #####    
 st.title('Hedging Analysis')
+c1,c2=st.columns(2)
+
+#create dataframe for analysis
 df=getData()
-seriesI=st.selectbox('Select Independent Series',df.columns,index=2)
-seriesD=st.selectbox('Select Dependent Series',df.columns,index=7)
+seriesI=c1.selectbox('Select Independent Series',df.columns,index=2)
+checkPctI=c1.checkbox('Use Percent Change',key=1)
+checkChgI=c1.checkbox('Use Change',key=3)
+seriesD=c1.selectbox('Select Dependent Series',df.columns,index=7)
+checkPctD=c1.checkbox('Use Percent Change',key=2)
+checkChgD=c1.checkbox('Use Change',key=4)
 df=df[[seriesI,seriesD]].dropna()
-df=df.astype('float')
-   
+#df[seriesI]=pd.to_numeric(df[seriesI],errors='coerce')
+#df[seriesD]=pd.to_numeric(df[seriesD],errors='coerce')
+#df=df.astype('float').dropna()
+
+if checkPctI:
+    df[seriesI]=df[seriesI].pct_change()
+    df.dropna(inplace=True)
+if checkPctD:
+    df[seriesD]=df[seriesD].pct_change()
+    df.dropna(inplace=True)
+if checkChgI:
+    df[seriesI]=df[seriesI].diff()
+    df.dropna(inplace=True)
+if checkChgD:
+    df[seriesD]=df[seriesD].diff()
+    df.dropna(inplace=True)    
+    
+#create stats dataframe
+index=['Current Date','Current','Average','StDev','10d StDev','Z-Score']
+data=[(df[seriesI].index.max().strftime('%Y-%m-%d'),df[seriesD].index.max().strftime('%Y-%m-%d')),
+      (str("{:0.2f}".format(df[seriesI][-1])),str("{:0.2f}".format(df[seriesD][-1]))),
+      (str("{:0.2f}".format(df[seriesI].mean())),str("{:0.2f}".format(df[seriesD].mean()))),
+      (str("{:0.2f}".format(df[seriesI].std())),str("{:0.2f}".format(df[seriesD].std()))),
+      (str("{:0.2f}".format(df[seriesI].rolling(10).std()[-1])),str("{:0.2f}".format(df[seriesD].rolling(10).std()[-1]))),
+      (str("{:0.2f}".format((df[seriesI][-1]-df[seriesI].mean())/df[seriesI].std())),
+       str("{:0.2f}".format((df[seriesD][-1]-df[seriesD].mean())/df[seriesD].std()))
+       ) 
+      ]
+columns=[seriesI,seriesD]
+stats=pd.DataFrame(data=data,index=index,columns=columns)
+
 fig=make_subplots(specs=[[{"secondary_y":True}]])
 fig.add_trace(go.Scatter(x=df.index,y=df[seriesI].values,name=seriesI)
               ,secondary_y=False)
@@ -85,6 +146,8 @@ fig.update_xaxes(rangeslider_visible=True,
         ])
     )
 )
+c2.write('**Statistics**')
+c2.dataframe(stats)
 st.plotly_chart(fig)
 
 with st.form('regression'):
@@ -194,6 +257,7 @@ with st.form('rolling'):
     
     if submittedRolling:
         index=['Last','Mean','Median','StDev','Min','Max']
+        ##Rolling Correlations
         columns=[str(d1)+'d',str(d2)+'d',str(d3)+'d']
         s1=df[seriesI].rolling(d1).corr(df[seriesD])
         
@@ -216,9 +280,60 @@ with st.form('rolling'):
               ]
         data=list(zip(data1,data2,data3))
         rollingCorrelations=pd.DataFrame(data,index=index,columns=columns)
+        ##Rolling Standard Deviations
+        columns=[[seriesI,seriesI,seriesI,seriesD,seriesD,seriesD],
+                 [str(d1)+'d',str(d2)+'d',str(d3)+'d',
+                 str(d1)+'d',str(d2)+'d',str(d3)+'d'
+                 ]
+                 ]
+        s4=df[seriesI].rolling(d1).std()
+        
+        data1=["{:0.2f}".format(s4[-1]),"{:0.2f}".format(s4.mean()),
+              "{:0.2f}".format(s4.median()),"{:0.2f}".format(s4.std()),
+              "{:0.2f}".format(s4.min()),"{:0.2f}".format(s4.max())
+              ]
+        s5=df[seriesI].rolling(d2).std()
+        
+        data2=["{:0.2f}".format(s5[-1]),"{:0.2f}".format(s5.mean()),
+              "{:0.2f}".format(s5.median()),"{:0.2f}".format(s5.std()),
+              "{:0.2f}".format(s5.min()),"{:0.2f}".format(s5.max())
+              ]
+        
+        s6=df[seriesI].rolling(d3).std()
+        
+        data3=["{:0.2f}".format(s6[-1]),"{:0.2f}".format(s6.mean()),
+              "{:0.2f}".format(s6.median()),"{:0.2f}".format(s6.std()),
+              "{:0.2f}".format(s6.min()),"{:0.2f}".format(s6.max())
+              ]
+        s7=df[seriesD].rolling(d1).std()
+        
+        data4=["{:0.2f}".format(s7[-1]),"{:0.2f}".format(s7.mean()),
+              "{:0.2f}".format(s7.median()),"{:0.2f}".format(s7.std()),
+              "{:0.2f}".format(s7.min()),"{:0.2f}".format(s7.max())
+              ]
+        s8=df[seriesD].rolling(d2).std()
+        
+        data5=["{:0.2f}".format(s8[-1]),"{:0.2f}".format(s8.mean()),
+              "{:0.2f}".format(s8.median()),"{:0.2f}".format(s8.std()),
+              "{:0.2f}".format(s8.min()),"{:0.2f}".format(s8.max())
+              ]
+        
+        s9=df[seriesD].rolling(d3).std()
+        
+        data6=["{:0.2f}".format(s9[-1]),"{:0.2f}".format(s9.mean()),
+              "{:0.2f}".format(s9.median()),"{:0.2f}".format(s9.std()),
+              "{:0.2f}".format(s9.min()),"{:0.2f}".format(s9.max())
+              ]
+
+        data=list(zip(data1,data2,data3,data4,data5,data6))
+        rollingStd=pd.DataFrame(data,index=index,
+                                columns=pd.MultiIndex.from_arrays(columns))
         
         st.markdown('**Rolling Correlation Statistics**')
         st.dataframe(rollingCorrelations)
+        
+        st.markdown('**Rolling Standard Deviation Statistics**')
+        st.dataframe(rollingStd)
         
         fig2=px.histogram(s1,title=str(d1)+'d Correlations')
         st.plotly_chart(fig2)
