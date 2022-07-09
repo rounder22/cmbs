@@ -17,6 +17,8 @@ import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import quandl
+import json
+import pickle
 
 @st.cache
 def getData():
@@ -28,6 +30,26 @@ def getData():
     #df=df.set_index('Date').T
     #df.index=pd.to_datetime(df.index)
     df.sort_index(inplace=True)
+    
+    #TD Ameritrade API
+    apiKey='M9YPA8SDNNXYJVWTC3MDQF9ZU8EO93JC'
+    customTickers=pickle.load(open('customTickers.pkl','rb'))
+    for ticker in customTickers:
+        endpoint='https://api.tdameritrade.com/v1//marketdata/%s/pricehistory'%ticker
+        data=json.loads(re.get(endpoint,params={'apikey':apiKey,
+                                               'periodType':'year',
+                                               'period':10,
+                                               'frequencyType':'daily',
+                                               'frequency':1
+                                               }
+                              ).content
+                        )
+        td=pd.DataFrame(data['candles'])
+        td['datetime']=pd.to_datetime(td['datetime'],unit='ms')
+        td.set_index('datetime',inplace=True)
+        td.index=td.index.normalize()
+    df=pd.merge(df,td.close,how='outer',left_index=True,right_index=True)
+    df.rename(columns={'close':'DXY'},inplace=True)
     
     #Yahoo Data
     yahoo=yf.download(['^GSPC','IVOL','XLF','BAC','JPM','PFIX','NLY','AGNC'],period='5y')
@@ -91,13 +113,14 @@ c1,c2=st.columns(2)
 
 #create dataframe for analysis
 df=getData()
-seriesI=c1.selectbox('Select Independent Series',df.columns,index=2)
+seriesI=c1.selectbox('Select Independent/Hedge Series',df.columns,index=2)
 checkPctI=c1.checkbox('Use Percent Change',key=1)
 checkChgI=c1.checkbox('Use Change',key=3)
-seriesD=c1.selectbox('Select Dependent Series',df.columns,index=7)
+seriesD=c1.selectbox('Select Dependent/Underlying Series',df.columns,index=7)
 checkPctD=c1.checkbox('Use Percent Change',key=2)
 checkChgD=c1.checkbox('Use Change',key=4)
 df=df[[seriesI,seriesD]].dropna()
+dfHR=df[[seriesI,seriesD]].dropna()
 #df[seriesI]=pd.to_numeric(df[seriesI],errors='coerce')
 #df[seriesD]=pd.to_numeric(df[seriesD],errors='coerce')
 #df=df.astype('float').dropna()
@@ -256,76 +279,41 @@ with st.form('rolling'):
     submittedRolling=st.form_submit_button('Submit')
     
     if submittedRolling:
+        df.dropna(inplace=True)
         index=['Last','Mean','Median','StDev','Min','Max']
+        
         ##Rolling Correlations
         columns=[str(d1)+'d',str(d2)+'d',str(d3)+'d']
-        s1=df[seriesI].rolling(d1).corr(df[seriesD])
+        data={}
+        charts=[]
+        for period in [d1,d2,d3]:
+            s=df[seriesI].rolling(period).corr(df[seriesD])
         
-        data1=["{:0.2f}".format(s1[-1]),"{:0.2f}".format(s1.mean()),
-              "{:0.2f}".format(s1.median()),"{:0.2f}".format(s1.std()),
-              "{:0.2f}".format(s1.min()),"{:0.2f}".format(s1.max())
-              ]
-        s2=df[seriesI].rolling(d2).corr(df[seriesD])
-        
-        data2=["{:0.2f}".format(s2[-1]),"{:0.2f}".format(s2.mean()),
-              "{:0.2f}".format(s2.median()),"{:0.2f}".format(s2.std()),
-              "{:0.2f}".format(s2.min()),"{:0.2f}".format(s2.max())
-              ]
-        
-        s3=df[seriesI].rolling(d3).corr(df[seriesD])
-        
-        data3=["{:0.2f}".format(s3[-1]),"{:0.2f}".format(s3.mean()),
-              "{:0.2f}".format(s3.median()),"{:0.2f}".format(s3.std()),
-              "{:0.2f}".format(s3.min()),"{:0.2f}".format(s3.max())
-              ]
-        data=list(zip(data1,data2,data3))
+            data[str(period)+'d']=["{:0.2f}".format(s[-1]),"{:0.2f}".format(s.mean()),
+                   "{:0.2f}".format(s.median()),"{:0.2f}".format(s.std()),
+                   "{:0.2f}".format(s.min()),"{:0.2f}".format(s.max())
+                   ]
+            charts.append((s,period))
+            
         rollingCorrelations=pd.DataFrame(data,index=index,columns=columns)
+                
         ##Rolling Standard Deviations
         columns=[[seriesI,seriesI,seriesI,seriesD,seriesD,seriesD],
                  [str(d1)+'d',str(d2)+'d',str(d3)+'d',
                  str(d1)+'d',str(d2)+'d',str(d3)+'d'
                  ]
                  ]
-        s4=df[seriesI].rolling(d1).std()
+        data={}
+        for period,series in [(d1,seriesI),(d2,seriesI),(d3,seriesI),
+                              (d1,seriesD),(d2,seriesD),(d3,seriesD)
+                              ]:
+            s=df[series].rolling(period).std()
         
-        data1=["{:0.2f}".format(s4[-1]),"{:0.2f}".format(s4.mean()),
-              "{:0.2f}".format(s4.median()),"{:0.2f}".format(s4.std()),
-              "{:0.2f}".format(s4.min()),"{:0.2f}".format(s4.max())
-              ]
-        s5=df[seriesI].rolling(d2).std()
+            data[(series,str(period)+'d')]=["{:0.2f}".format(s[-1]),"{:0.2f}".format(s.mean()),
+                  "{:0.2f}".format(s.median()),"{:0.2f}".format(s.std()),
+                  "{:0.2f}".format(s.min()),"{:0.2f}".format(s.max())
+                  ]
         
-        data2=["{:0.2f}".format(s5[-1]),"{:0.2f}".format(s5.mean()),
-              "{:0.2f}".format(s5.median()),"{:0.2f}".format(s5.std()),
-              "{:0.2f}".format(s5.min()),"{:0.2f}".format(s5.max())
-              ]
-        
-        s6=df[seriesI].rolling(d3).std()
-        
-        data3=["{:0.2f}".format(s6[-1]),"{:0.2f}".format(s6.mean()),
-              "{:0.2f}".format(s6.median()),"{:0.2f}".format(s6.std()),
-              "{:0.2f}".format(s6.min()),"{:0.2f}".format(s6.max())
-              ]
-        s7=df[seriesD].rolling(d1).std()
-        
-        data4=["{:0.2f}".format(s7[-1]),"{:0.2f}".format(s7.mean()),
-              "{:0.2f}".format(s7.median()),"{:0.2f}".format(s7.std()),
-              "{:0.2f}".format(s7.min()),"{:0.2f}".format(s7.max())
-              ]
-        s8=df[seriesD].rolling(d2).std()
-        
-        data5=["{:0.2f}".format(s8[-1]),"{:0.2f}".format(s8.mean()),
-              "{:0.2f}".format(s8.median()),"{:0.2f}".format(s8.std()),
-              "{:0.2f}".format(s8.min()),"{:0.2f}".format(s8.max())
-              ]
-        
-        s9=df[seriesD].rolling(d3).std()
-        
-        data6=["{:0.2f}".format(s9[-1]),"{:0.2f}".format(s9.mean()),
-              "{:0.2f}".format(s9.median()),"{:0.2f}".format(s9.std()),
-              "{:0.2f}".format(s9.min()),"{:0.2f}".format(s9.max())
-              ]
-
-        data=list(zip(data1,data2,data3,data4,data5,data6))
         rollingStd=pd.DataFrame(data,index=index,
                                 columns=pd.MultiIndex.from_arrays(columns))
         
@@ -335,12 +323,42 @@ with st.form('rolling'):
         st.markdown('**Rolling Standard Deviation Statistics**')
         st.dataframe(rollingStd)
         
-        fig2=px.histogram(s1,title=str(d1)+'d Correlations')
-        st.plotly_chart(fig2)
+        for chart,period in charts:
+            fig=px.histogram(chart,title=str(period)+'d Correlations')
+            st.plotly_chart(fig)
+                
+with st.form('hedgeRatio'):    
+    st.subheader('Rolling Hedge Ratio Analysis')
+    col2, col3, col4=st.columns(3)
+    d1=col2.number_input('Enter Number of Days',min_value=2,step=1,value=5)
+    d2=col3.number_input('Enter Number of Days',min_value=2,step=1,value=10)
+    d3=col4.number_input('Enter Number of Days',min_value=2,step=1,value=20)
+    
+    submittedRollingHR=st.form_submit_button('Submit')
+    
+    if submittedRollingHR:
+        dfHR.dropna(inplace=True)
+        index=['Last','Mean','Median','StDev','Min','Max']
+        columns=[str(d1)+'d',str(d2)+'d',str(d3)+'d']
+        data={}
+        series=[]
+        for period in [d1,d2,d3]:
+            p=dfHR[seriesI].diff().rolling(period).corr(dfHR[seriesD].diff())
+            sI=dfHR[seriesI].diff().rolling(period).std()
+            sD=dfHR[seriesD].diff().rolling(period).std()
+            sHR=p*(sD/sI)
         
+            data[str(period)+'d']=("{:0.2f}".format(sHR[-1]),"{:0.2f}".format(sHR.mean()),
+                  "{:0.2f}".format(sHR.median()),"{:0.2f}".format(sHR.std()),
+                  "{:0.2f}".format(sHR.min()),"{:0.2f}".format(sHR.max())
+                  )
+            series.append([sHR,period])
         
-        fig3=px.histogram(s2,title=str(d2)+'d Correlations')
-        st.plotly_chart(fig3)
+        rollingHR=pd.DataFrame(data,index=index,columns=columns)
+                                    
+        st.markdown('**Rolling Hedge Ratio Statistics**')
+        st.dataframe(rollingHR)
         
-        fig4=px.histogram(s3,title=str(d3)+'d Correlations')
-        st.plotly_chart(fig4)
+        for series in series:
+            fig=px.histogram(series[0],title=str(series[1])+'d Hedge Ratio')
+            st.plotly_chart(fig)
