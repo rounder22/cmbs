@@ -10,7 +10,6 @@ import pandas as pd
 import numpy as np
 from sklearn.linear_model import LinearRegression
 import scipy.stats
-import yfinance as yf
 #import io
 import requests as re
 import plotly.express as px
@@ -19,6 +18,7 @@ from plotly.subplots import make_subplots
 import quandl
 import json
 import pickle
+from git import Repo
 
 @st.cache
 def getData():
@@ -44,22 +44,24 @@ def getData():
                                                }
                               ).content
                         )
-        td=pd.DataFrame(data['candles'])
-        td['datetime']=pd.to_datetime(td['datetime'],unit='ms')
-        td.set_index('datetime',inplace=True)
-        td.index=td.index.normalize()
-    df=pd.merge(df,td.close,how='outer',left_index=True,right_index=True)
-    df.rename(columns={'close':'DXY'},inplace=True)
-    
-    #Yahoo Data
-    yahoo=yf.download(['^GSPC','IVOL','XLF','BAC','JPM','PFIX','NLY','AGNC'],period='5y')
-    df=pd.merge(df,yahoo.Close,how='outer',left_index=True,right_index=True)
-    df.rename(columns={'^GSPC':'SPX'},inplace=True)
-    
+        t=pd.DataFrame(data['candles'])
+        t['datetime']=pd.to_datetime(t['datetime'],unit='ms')
+        t.set_index('datetime',inplace=True)
+        t.index=t.index.normalize()
+        t.rename(columns={'close':ticker},inplace=True)
+        if customTickers.index(ticker)==0:
+            td=pd.DataFrame(t[ticker])
+        else:
+            td=pd.concat([td,t[ticker]],axis=1)
+      
+    #Merge with main dataframe
+    td.rename(columns={'$DXY':'DXY'},inplace=True)
+    df=pd.merge(df,td,how='outer',left_index=True,right_index=True)
+        
     #FRED Data
     api_key='73cf3bed4794ea8277f4d43358d8ce07'
     lsSeries={'UST2Y':'DGS2','UST5Y':'DGS5','UST10Y':'DGS10','UST30Y':'DGS30',
-              'Real UST10Y':'DFII10'}
+              'Real UST10Y':'DFII10','SPX':'SP500'}
     endpoint='https://api.stlouisfed.org/fred/series/observations'
     for series in lsSeries:
         params={'api_key':api_key,
@@ -67,18 +69,20 @@ def getData():
                 'series_id':lsSeries[series]
                 }
         dfFRED=pd.DataFrame(re.get(endpoint,params).json()['observations'])
-        dfFRED['value']=dfFRED['value'].str.replace('.','')
+        dfFRED['value']=dfFRED['value'].replace(to_replace='^\.',value=np.nan,regex=True)
         dfFRED['date']=pd.to_datetime(dfFRED['date'])
         dfFRED['value']=pd.to_numeric(dfFRED['value'])
         dfFRED.drop(columns=['realtime_start','realtime_end'],inplace=True)
         dfFRED.rename(columns={'date':'Date'},inplace=True)
         dfFRED.set_index('Date',inplace=True)
         dfFRED.rename(columns={'value':series},inplace=True)
+        #Merge each series one by one with main dataframe
         df=pd.merge(df,dfFRED,how='outer',left_index=True,right_index=True)
     
     #Quandl Data
     quandl.ApiConfig.api_key='56v4NVWgkabqfn_Xy8Rj'
     qData=quandl.get(['LBMA/GOLD','LBMA/SILVER'])
+    #Merge with main dataframe
     df=pd.merge(df,qData,how='outer',left_index=True,right_index=True)
     
     return df
@@ -94,7 +98,12 @@ def inputData(file):
     old=old.append(df)
     #old=old[~old.index.duplicated(keep='first')]
     old.to_pickle('index_data.pkl')
-
+    #Push to Github
+    repo=Repo('hedging')
+    repo.index.add('index_data.pkl')
+    repo.index.commit('update index data')
+    repo.remote('origin').push()
+    
 ##### SIDEBAR #####    
 st.sidebar.subheader('Upload Data')
 st.sidebar.download_button('Downloand Input Template',
