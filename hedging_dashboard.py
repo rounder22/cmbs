@@ -99,7 +99,7 @@ def inputData(file):
     #old=old[~old.index.duplicated(keep='first')]
     old.to_pickle('index_data.pkl')
     #Push to Github
-    repo=Repo('hedging')
+    repo=Repo('.')
     repo.index.add('index_data.pkl')
     repo.index.commit('update index data')
     repo.remote('origin').push()
