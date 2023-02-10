@@ -87,22 +87,7 @@ def getData():
     
     return df
 
-def inputData(file):
-    df=pd.read_csv(file)
-    df=df.dropna().set_index('Date').T
-    df.index=pd.to_datetime(df.index)
-    
-    old=pd.read_pickle('index_data.pkl')
-    #old=old.set_index('Date').T
-    #old.index=pd.to_datetime(old.index)
-    old=old.append(df)
-    #old=old[~old.index.duplicated(keep='first')]
-    old.to_pickle('index_data.pkl')
-    #Push to Github
-    repo=Repo('.')
-    repo.index.add('index_data.pkl')
-    repo.index.commit('update index data')
-    repo.remote('origin').push()
+
     
 ##### SIDEBAR #####    
 #st.sidebar.subheader('Upload Data')
