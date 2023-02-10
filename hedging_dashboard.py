@@ -105,16 +105,16 @@ def inputData(file):
     repo.remote('origin').push()
     
 ##### SIDEBAR #####    
-st.sidebar.subheader('Upload Data')
-st.sidebar.download_button('Downloand Input Template',
-                           data=open('input.csv','rb'),
-                           file_name='input.csv'
-                           )
-file=st.sidebar.file_uploader('Select File',
-                              type='csv'
-                              )
-if st.sidebar.button('Upload'):
-    inputData(file)
+#st.sidebar.subheader('Upload Data')
+#st.sidebar.download_button('Downloand Input Template',
+#                           data=open('input.csv','rb'),
+#                           file_name='input.csv'
+#                           )
+#file=st.sidebar.file_uploader('Select File',
+#                              type='csv'
+#                              )
+#if st.sidebar.button('Upload'):
+#    inputData(file)
     
 ##### MAIN #####    
 st.title('Hedging Analysis')
