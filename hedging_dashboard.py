@@ -10,7 +10,8 @@ import pandas as pd
 import numpy as np
 from sklearn.linear_model import LinearRegression
 import scipy.stats
-#import io
+import sys
+sys.path.append("..")
 import requests as re
 import plotly.express as px
 import plotly.graph_objects as go
@@ -18,45 +19,32 @@ from plotly.subplots import make_subplots
 import quandl
 import json
 import pickle
-from git import Repo
+from packages import tdAPI as td
+import hedging_utilities as hu
+
+st.set_page_config(page_title='Hedging Dashboard')
 
 @st.cache
 def getData():
-    
-    #url='https://raw.githubusercontent.com/rounder22/cmbs/main/cleaned%20index%20data.csv'
-    #s=requests.get(url).content
-    #df=pd.read_csv(io.StringIO(s.decode('utf-8')))
+    #Internal Index Data
     df=pd.read_pickle('index_data.pkl')
-    #df=df.set_index('Date').T
-    #df.index=pd.to_datetime(df.index)
     df.sort_index(inplace=True)
     
     #TD Ameritrade API
-    apiKey='M9YPA8SDNNXYJVWTC3MDQF9ZU8EO93JC'
     customTickers=pickle.load(open('customTickers.pkl','rb'))
     for ticker in customTickers:
-        endpoint='https://api.tdameritrade.com/v1//marketdata/%s/pricehistory'%ticker
-        data=json.loads(re.get(endpoint,params={'apikey':apiKey,
-                                               'periodType':'year',
-                                               'period':10,
-                                               'frequencyType':'daily',
-                                               'frequency':1
-                                               }
-                              ).content
-                        )
-        t=pd.DataFrame(data['candles'])
-        t['datetime']=pd.to_datetime(t['datetime'],unit='ms')
-        t.set_index('datetime',inplace=True)
-        t.index=t.index.normalize()
-        t.rename(columns={'close':ticker},inplace=True)
+        t=td.get_price_history(ticker, 'year', 10, 1, 'daily')
         if customTickers.index(ticker)==0:
-            td=pd.DataFrame(t[ticker])
+            df_td=pd.DataFrame(t[ticker]['close'])
+            df_td.columns=[ticker]
         else:
-            td=pd.concat([td,t[ticker]],axis=1)
+            new=t[ticker]['close']
+            new.name=ticker
+            df_td=pd.concat([df_td,new],axis=1)
       
     #Merge with main dataframe
-    td.rename(columns={'$DXY':'DXY'},inplace=True)
-    df=pd.merge(df,td,how='outer',left_index=True,right_index=True)
+    df_td.rename(columns={'$DXY':'DXY'},inplace=True)
+    df_td=pd.merge(df,df_td,how='outer',left_index=True,right_index=True)
         
     #FRED Data
     api_key='73cf3bed4794ea8277f4d43358d8ce07'
@@ -86,9 +74,7 @@ def getData():
     df=pd.merge(df,qData,how='outer',left_index=True,right_index=True)
     
     return df
-
-
-    
+  
 ##### SIDEBAR #####    
 #st.sidebar.subheader('Upload Data')
 #st.sidebar.download_button('Downloand Input Template',

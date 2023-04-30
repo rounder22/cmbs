@@ -1,9 +1,13 @@
 # -*- coding: utf-8 -*-
 """
-Created on Fri Feb 10 11:35:23 2023
-
-@author: joshm
+Utility functions for the hedging dashboard
 """
+#from git import Repo
+#import io
+#url='https://raw.githubusercontent.com/rounder22/cmbs/main/cleaned%20index%20data.csv'
+#s=requests.get(url).content
+#df=pd.read_csv(io.StringIO(s.decode('utf-8')))
+
 import pandas as pd
 
 def inputData(file):
