@@ -19,7 +19,7 @@ from plotly.subplots import make_subplots
 import quandl
 import json
 import pickle
-from packages import tdAPI as td
+import tdAPI as td
 import hedging_utilities as hu
 
 st.set_page_config(page_title='Hedging Dashboard')
